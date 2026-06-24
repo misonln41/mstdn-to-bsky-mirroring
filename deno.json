@@ -1,0 +1,9 @@
+{
+  "tasks": {
+    "dev": "deno run --allow-env --allow-net --allow-read --allow-write ./main.ts"
+  },
+  "imports": {
+    "@atproto/api": "npm:@atproto/api@^0.20.18",
+    "@b-fuze/deno-dom": "jsr:@b-fuze/deno-dom@^0.1.56"
+  }
+}
