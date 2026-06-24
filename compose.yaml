@@ -1,8 +1,12 @@
 services:
-  nervMirror:
+  mstdn-to-bsky-mirroring:
     build:
       context: .
       dockerfile: Dockerfile
     env_file:
       - ./.env
+    volumes:
+      - type: bind
+        source: "./config.json"
+        target: "/app/config.json"
     restart: unless-stopped
