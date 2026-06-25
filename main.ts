@@ -1,6 +1,5 @@
 import { DOMParser } from "@b-fuze/deno-dom";
-import { AtpAgent, RichText } from "@atproto/api";
-import { setInterval } from "node:timers";
+import { AppBskyEmbedImages, AtpAgent, RichText } from "@atproto/api";
 
 type Outbox = {
   id: string;
@@ -36,6 +35,7 @@ type ItemObject = {
 type Attachment = {
   mediaType: string;
   url: string;
+  name?: string;
   width: number;
   height: number;
 };
@@ -46,12 +46,16 @@ type Config = {
   lastSyncedPost: string;
 };
 
-async function checkNewPostThenPost(config: Config) {
+async function fetchOutbox(config: Config) {
   const response = await fetch(
     `${config.instance}/users/${config.username}/outbox?min_id=${config.lastSyncedPost}&page=true`,
   );
+  return response.json();
+}
 
-  const outbox: Outbox = await response.json();
+async function mirrorNewPost() {
+  const config = await fetchConfig();
+  const outbox: Outbox = await fetchOutbox(config);
 
   if (typeof outbox.orderedItems === "undefined") {
     return;
@@ -68,22 +72,42 @@ async function checkNewPostThenPost(config: Config) {
   ).reverse();
 
   items.forEach(async (item) => {
-    const postTextPreProcess: string = new DOMParser().parseFromString(
+    const rawText: string = new DOMParser().parseFromString(
       item.object.content
         ? item.object.content
           .replaceAll("</p>", "</p>\n").replaceAll("<br", "\n<br")
         : "",
       "text/html",
     ).documentElement?.innerText ?? "";
-    const postTextFull: string =
-      postTextPreProcess.length + item.object.url.length > 290
-        ? `${
-          postTextPreProcess.substring(0, 290 - item.object.url.length)
-        }……\n${item.object.url}`
-        : `${postTextPreProcess}\n${item.object.url}`;
-    await tweet(postTextFull, item.object.published);
-    console.log(postTextFull);
+    const postText: string = (rawText.length + item.object.url.length > 297)
+      ? `${
+        rawText.substring(0, 297 - item.object.url.length)
+      }…\n${item.object.url}`
+      : `${rawText}\n${item.object.url}`;
+    const agent = await createAgent();
+    const embeds = item.object.attachment
+      ? await processImages(agent, item.object.attachment)
+      : undefined;
+    await postToBsky(agent, postText, item.object.published, embeds);
+    console.log(postText);
   });
+
+  async function processImages(agent: AtpAgent, attachments: Attachment[]) {
+    const images = attachments.filter((a) => a.mediaType.includes("image"));
+    let processedImages: AppBskyEmbedImages.Image[] = [];
+    processedImages = await Promise.all(images.map(async (i) => {
+      const fetchImage = (await fetch(i.url)).blob();
+      const { data } = await agent.uploadBlob(await fetchImage, {
+        encoding: i.mediaType,
+      });
+      return {
+        alt: i.name ? i.name : "",
+        image: data.blob,
+        aspectRatio: { width: i.width, height: i.height },
+      };
+    }));
+    return processedImages;
+  }
 
   const lastSyncedPost: string =
     items.at(-1)?.object.id.split("/").at(-1)?.toString() ??
@@ -95,15 +119,7 @@ async function checkNewPostThenPost(config: Config) {
   );
 }
 
-async function getConfig(): Promise<Config> {
-  const ftch = await fetch(
-    new URL("./config.json", import.meta.url).toString(),
-  );
-  const config = JSON.parse(await ftch.text());
-  return config;
-}
-
-async function tweet(t: string, d: string, i?: object) {
+async function createAgent() {
   const service = Deno.env.get("BSKY_SERVICE");
   const identifier = Deno.env.get("BSKY_IDENTIFIER");
   const password = Deno.env.get("BSKY_PASSWORD");
@@ -119,19 +135,43 @@ async function tweet(t: string, d: string, i?: object) {
       identifier: identifier,
       password: password,
     });
-    const rt = new RichText({
-      text: t,
-    });
-    await rt.detectFacets(agent);
-    await agent.post({
-      text: rt.text,
-      facets: rt.facets,
-      createdAt: d || new Date().toISOString(),
-    });
+    return agent;
+  } else {
+    throw new Error("Login to bsky failed");
   }
 }
 
+async function fetchConfig(): Promise<Config> {
+  const fetchConfig = await fetch(
+    new URL("./config.json", import.meta.url).toString(),
+  );
+  const config = JSON.parse(await fetchConfig.text());
+  return config;
+}
+
+async function postToBsky(
+  agent: AtpAgent,
+  text: string,
+  date: string,
+  images?: AppBskyEmbedImages.Image[],
+) {
+  const richText = new RichText({
+    text: text,
+  });
+  await richText.detectFacets(agent);
+  await agent.post({
+    text: richText.text,
+    facets: richText.facets,
+    createdAt: date,
+    ...(images && {
+      embed: {
+        $type: "app.bsky.embed.images",
+        images: images,
+      },
+    }),
+  });
+}
+
 setInterval(async () => {
-  await checkNewPostThenPost(await getConfig());
-  console.log((await getConfig()).lastSyncedPost);
+  await mirrorNewPost();
 }, 60000);
