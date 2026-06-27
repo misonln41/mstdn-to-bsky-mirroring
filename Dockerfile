@@ -11,4 +11,4 @@ RUN deno cache main.ts
 # Prefer not to run as root.
 USER deno
 
-CMD ["run", "--allow-env", "--allow-net", "--allow-read", "--allow-write", "main.ts"]
+CMD ["run", "--unstable-cron", "--allow-env", "--allow-net", "--allow-read", "--allow-write", "main.ts"]

@@ -173,6 +173,6 @@ async function postToBsky(
   });
 }
 
-setInterval(async () => {
+Deno.cron("Run every one minute", { minute: { every: 1 } }, async () => {
   await mirrorNewPost();
-}, 60000);
+});
