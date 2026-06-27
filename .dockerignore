@@ -1,0 +1,8 @@
+.git
+.gitignore
+Dockerfile
+compose.yaml
+.env
+.env.example
+config.json
+config.example.json

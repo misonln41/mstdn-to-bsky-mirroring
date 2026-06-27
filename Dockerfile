@@ -1,14 +1,18 @@
-FROM denoland/deno:2.8.3
-
+FROM denoland/deno:alpine AS builder
+ENV DENO_DIR=/deno-dir
 WORKDIR /app
 
-# These steps will be re-run upon each file change in your working directory:
+COPY deno.json deno.lock ./
+RUN deno ci --prod --skip-types
+
 COPY . .
 
-# Compile the main app so that it doesn't need to be compiled each startup/entry.
-RUN deno cache main.ts
+FROM denoland/deno:alpine
+ENV DENO_DIR=/deno-dir
+WORKDIR /app
 
-# Prefer not to run as root.
+COPY --from=builder /app .
+COPY --from=builder /deno-dir /deno-dir
+
 USER deno
-
 CMD ["run", "--unstable-cron", "--allow-env", "--allow-net", "--allow-read", "--allow-write", "main.ts"]
