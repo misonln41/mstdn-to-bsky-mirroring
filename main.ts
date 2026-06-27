@@ -1,5 +1,6 @@
 import { DOMParser } from "@b-fuze/deno-dom";
-import { AppBskyEmbedImages, AtpAgent, RichText } from "@atproto/api";
+import { AppBskyEmbedImages, AtpAgent } from "@atproto/api";
+import { RichText } from "./atproto/packages/api/src/rich-text/rich-text.ts";
 
 type Outbox = {
   id: string;

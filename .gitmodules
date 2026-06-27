@@ -1,0 +1,4 @@
+[submodule "atproto"]
+	path = atproto
+	url = git@github.com:misonln41/atproto.git
+	branch = main
