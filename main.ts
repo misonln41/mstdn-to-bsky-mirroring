@@ -93,23 +93,6 @@ async function mirrorNewPost() {
     console.log(postText);
   });
 
-  async function processImages(agent: AtpAgent, attachments: Attachment[]) {
-    const images = attachments.filter((a) => a.mediaType.includes("image"));
-    let processedImages: AppBskyEmbedImages.Image[] = [];
-    processedImages = await Promise.all(images.map(async (i) => {
-      const fetchImage = (await fetch(i.url)).blob();
-      const { data } = await agent.uploadBlob(await fetchImage, {
-        encoding: i.mediaType,
-      });
-      return {
-        alt: i.name ? i.name : "",
-        image: data.blob,
-        aspectRatio: { width: i.width, height: i.height },
-      };
-    }));
-    return processedImages;
-  }
-
   const lastSyncedPost: string =
     items.at(-1)?.object.id.split("/").at(-1)?.toString() ??
       config.lastSyncedPost;
@@ -118,6 +101,26 @@ async function mirrorNewPost() {
     "config.json",
     JSON.stringify({ ...config, lastSyncedPost: lastSyncedPost }, null, 2),
   );
+}
+
+async function processImages(agent: AtpAgent, attachments: Attachment[]) {
+  const images = attachments.filter((a) => a.mediaType.includes("image")).slice(
+    0,
+    4,
+  );
+  let processedImages: AppBskyEmbedImages.Image[] = [];
+  processedImages = await Promise.all(images.map(async (i) => {
+    const fetchImage = (await fetch(i.url)).blob();
+    const { data } = await agent.uploadBlob(await fetchImage, {
+      encoding: i.mediaType,
+    });
+    return {
+      alt: i.name ? i.name : "",
+      image: data.blob,
+      aspectRatio: { width: i.width, height: i.height },
+    };
+  }));
+  return processedImages;
 }
 
 async function createAgent() {
